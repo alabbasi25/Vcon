@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents one of the two users (F or B)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "enum": ["F", "B"] },
+        "mood": { "type": "string", "description": "Current mood state" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["online", "offline", "away"] }
+      },
+      "required": ["uid", "status"]
+    },
+    "PlanetStats": {
+      "title": "Planet Stats",
+      "description": "Daily aggregated health score and breakdown",
+      "type": "object",
+      "properties": {
+        "score": { "type": "number", "description": "0-100 score" },
+        "breakdown": {
+          "type": "object",
+          "properties": {
+            "tasks": { "type": "number" },
+            "finance": { "type": "number" },
+            "worship": { "type": "number" },
+            "health": { "type": "number" }
+          }
+        }
+      }
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A shared or individual task",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "assignedTo": { "type": "string", "enum": ["F", "B", "Collaborative"] },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "swapRequest": {
+          "type": "object",
+          "properties": {
+            "to": { "type": "string" },
+            "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] }
+          }
+        }
+      }
+    },
+    "Finance": {
+      "title": "Finance",
+      "description": "Shared wallet and future goals",
+      "type": "object",
+      "properties": {
+        "operational": { "type": "number" },
+        "futureGoals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "target": { "type": "number" },
+              "current": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User presence and mood"
+    },
+    "/planet_stats/{date}": {
+      "schema": "PlanetStats",
+      "description": "Daily scores"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Task management"
+    },
+    "/finance/shared": {
+      "schema": "Finance",
+      "description": "Shared financial state"
+    }
+  }
+}

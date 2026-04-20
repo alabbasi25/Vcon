@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Check if the user is F or B
+    function isAuthorized() {
+      return request.auth != null && (request.auth.uid == 'F' || request.auth.uid == 'B');
+    }
+
+    // 1. Users Collection: Presence and Mood
+    match /users/{userId} {
+      allow read: if isAuthorized();
+      allow write: if request.auth.uid == userId;
+    }
+
+    // 2. Tasks, Finance, Worship, Health: Shared Access
+    match /tasks/{taskId} { allow read, write: if isAuthorized(); }
+    match /finance/{doc} { allow read, write: if isAuthorized(); }
+    match /worship/{date} { allow read, write: if isAuthorized(); }
+    match /health/{date} { allow read, write: if isAuthorized(); }
+    match /planet_stats/{date} { allow read: if isAuthorized(); }
+
+    // 3. Memory Vault: Time-Lock Logic
+    match /vault/{itemId} {
+      allow create: if isAuthorized();
+      allow read: if isAuthorized() && 
+                   (request.time.toMillis() >= resource.data.unlockDate);
+      allow update, delete: if false; // Vault items are immutable once locked
+    }
+  }
+}

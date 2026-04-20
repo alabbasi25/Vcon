@@ -1,0 +1,9 @@
+{
+  "name": "Remix: Remix: Remix: كوكب | Kokab",
+  "description": "تطبيق الزوجين الذكي - تنظيم، روحانية، ورومانسية بخصوصية تامة",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}
