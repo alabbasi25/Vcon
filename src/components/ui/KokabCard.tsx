@@ -30,6 +30,7 @@ export const KokabCard: React.FC<KokabCardProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01, boxShadow: '0 0 20px var(--color-shadow)' }}
       className={`
         ${variants[variant]}
         ${paddings[padding]}

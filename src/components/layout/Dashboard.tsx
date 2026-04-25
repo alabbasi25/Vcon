@@ -66,24 +66,22 @@ import { RomanceLounge } from '../features/RomanceLounge';
 import { KnowledgeStudio } from '../features/KnowledgeStudio';
 import { FocusSync } from '../features/FocusSync';
 import { HydrationStation } from '../features/HydrationStation';
-import { TimeCapsule } from '../features/TimeCapsule';
 import { HapticPresence } from '../features/HapticPresence';
 import { FutureFamily } from '../features/FutureFamily';
 import { ProfilePage } from '../views/ProfilePage';
+import { MemoryEther } from '../features/MemoryEther';
 import { NotificationCenter } from '../ui/NotificationCenter';
 import { PlanetHealthSection } from '../ui/PlanetHealthSection';
 
 import { MoodTracker } from '../features/MoodTracker';
-import { SharedJournal } from '../features/SharedJournal';
 import { LoveLanguageQuiz } from '../features/LoveLanguageQuiz';
-import { DateNightAI } from '../features/DateNightAI';
 
 type ViewID = 
   | 'arena' | 'romance' | 'knowledge' | 'focus' | 'conflict'
   | 'system' | 'ledger' | 'future_fund' | 'tasks' | 'inventory' | 'worship'
   | 'private' | 'growth' | 'health' | 'hydration' | 'travel' | 'family'
-  | 'haptic' | 'gratitude' | 'capsule' | 'vault'
-  | 'mood' | 'journal' | 'quiz' | 'dates'
+  | 'haptic' | 'gratitude' | 'memory_ether' | 'vault'
+  | 'mood' | 'quiz'
   | 'home' | 'profile' | 'permissions' | 'ai' | 'chat';
 
 import { TestMode } from '../ui/TestMode';
@@ -117,7 +115,7 @@ export const Dashboard: React.FC<{ onSwitchUser: (id?: UserID) => void }> = ({ o
     // Relationship Pillar
     { id: 'gratitude', label: 'سجل المودة', icon: <Smile size={20} />, category: 'برج المودة' },
     { id: 'romance', label: 'صالون الرومانسية', icon: <Heart size={20} />, category: 'برج المودة' },
-    { id: 'journal', label: 'يوميات الكوكب', icon: <Book size={20} />, category: 'برج المودة' },
+    { id: 'memory_ether', label: 'أثير الذكريات', icon: <Sparkles size={20} />, category: 'برج المودة' },
     { id: 'conflict', label: 'غرفة التفاهم', icon: <Shield size={20} />, category: 'برج المودة' },
     
     // Operations & Finance Pillar
@@ -155,10 +153,8 @@ export const Dashboard: React.FC<{ onSwitchUser: (id?: UserID) => void }> = ({ o
       case 'gratitude': return <GratitudeFeed />;
       case 'conflict': return <ConflictRoom />;
       case 'mood': return <MoodTracker />;
-      case 'journal': return <SharedJournal />;
+      case 'memory_ether': return <MemoryEther />;
       case 'quiz': return <LoveLanguageQuiz />;
-      case 'dates': return <DateNightAI />;
-      case 'capsule': return <TimeCapsule />;
       case 'travel': return <TravelPlanner />;
       case 'family': return <FutureFamily />;
       case 'vault': return <SecureVault />;
@@ -517,8 +513,14 @@ const HomeView: React.FC<{ setActiveTab: (tab: ViewID) => void }> = ({ setActive
     <div className="space-y-8 pb-12">
       {/* Welcome Section */}
       <div className="space-y-1">
-        <h2 className="text-3xl font-black tracking-tight">أهلاً، {currentUser === 'F' ? 'فهد' : 'بشرى'} 👋</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <h2 className="text-3xl font-black tracking-tight">أهلاً، {currentUser === 'F' ? 'فهد' : 'بشرى'} 👋</h2>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-green-500">متصل الآن</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
           <KokabBadge label="الأجواء صافية" variant="success" icon={<Smile size={12} />} />
           {barakahPoints > 1000 && <KokabBadge label="كوكب مبارك" variant="warning" icon={<Sparkles size={12} />} />}
         </div>

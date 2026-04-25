@@ -104,9 +104,27 @@ export const TravelPlanner: React.FC = () => {
               </div>
               
               <div className="glass-card p-5 space-y-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-secondary)] flex items-center gap-2">
-                  <CheckSquare size={14} /> قائمة التعبئة
-                </h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-secondary)] flex items-center gap-2">
+                    <CheckSquare size={14} /> قائمة التعبئة
+                  </h3>
+                  {plan.packingList.length > 0 && (
+                    <span className="text-[10px] font-black text-blue-400">
+                      {Math.round((plan.packingList.filter(i => i.packed).length / plan.packingList.length) * 100)}%
+                    </span>
+                  )}
+                </div>
+                
+                {plan.packingList.length > 0 && (
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-blue-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(plan.packingList.filter(i => i.packed).length / plan.packingList.length) * 100}%` }}
+                    />
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {plan.packingList.length === 0 && <p className="text-[10px] opacity-40 italic text-center py-4">لا توجد أغراض مضافة...</p>}
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">

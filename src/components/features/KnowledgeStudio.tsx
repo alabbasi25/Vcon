@@ -18,10 +18,13 @@ import {
   CheckCircle2, 
   History,
   ChevronLeft,
-  Camera
+  Camera,
+  Sparkles
 } from 'lucide-react';
 import { usePlanet } from '../../context/KokabContext';
 import { ModernInput } from '../ui/ModernInput';
+
+import { getAIReadingRecommendations } from '../../services/aiService';
 
 export const KnowledgeStudio: React.FC = () => {
   const { 
@@ -42,6 +45,16 @@ export const KnowledgeStudio: React.FC = () => {
   const [newBook, setNewBook] = useState({ title: '', author: '', totalPages: 100, category: 'General' });
   const [audioNoteContent, setAudioNoteContent] = useState({ page: 1, note: '' });
   const [newHobby, setNewHobby] = useState({ title: '', description: '', totalSteps: 10 });
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiRecommendations, setAiRecommendations] = useState<string | null>(null);
+
+  const fetchAIRecommendations = async () => {
+    setIsAILoading(true);
+    const interests = library.map(b => b.category).join(', ') || 'الروايات، التطوير الذاتي، التاريخ';
+    const recs = await getAIReadingRecommendations(`الاهتمامات الحالية: ${interests}`);
+    setAiRecommendations(recs);
+    setIsAILoading(false);
+  };
 
   const handleAddAudioNote = (bookId: string) => {
     addAudioNote(bookId, audioNoteContent.page, audioNoteContent.note);
@@ -77,6 +90,13 @@ export const KnowledgeStudio: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <button 
+            onClick={fetchAIRecommendations}
+            className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20"
+            title="اقتراحات القراءة من AI"
+          >
+            <Sparkles size={20} />
+          </button>
+          <button 
             onClick={() => setShowAddHobby(true)}
             className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center border border-purple-500/20"
           >
@@ -90,6 +110,23 @@ export const KnowledgeStudio: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isAILoading ? (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center gap-3">
+             <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+             <span className="text-xs font-bold text-blue-500">جاري استخراج توصيات القراءة الذكية...</span>
+          </motion.div>
+        ) : aiRecommendations ? (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="p-5 bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-2xl space-y-3">
+             <div className="flex justify-between items-center text-blue-500">
+               <h3 className="text-sm font-black flex items-center gap-2"><Sparkles size={16} /> توصيات القراءة من AI</h3>
+               <button onClick={() => setAiRecommendations(null)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
+             </div>
+             <p className="text-xs whitespace-pre-wrap leading-relaxed opacity-80">{aiRecommendations}</p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Time-lapse Builder (Hobby Projects) */}
       <section className="space-y-4">

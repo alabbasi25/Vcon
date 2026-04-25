@@ -130,7 +130,7 @@
 
 @layer components {
   .glass-card {
-    @apply bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/30 rounded-[2rem] shadow-2xl backdrop-blur-2xl transition-all duration-500 hover:shadow-[var(--color-shadow)] text-[var(--color-text-primary)];
+    @apply bg-[var(--color-bg-card)]/50 border border-[var(--color-border)]/30 rounded-[2rem] shadow-2xl backdrop-blur-2xl transition-all duration-500 hover:shadow-[0_0_20px_var(--color-shadow)] hover:border-[var(--color-primary)] hover:scale-[1.01] text-[var(--color-text-primary)];
   }
 
   .glass {

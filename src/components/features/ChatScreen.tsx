@@ -303,6 +303,32 @@ export const ChatScreen: React.FC = () => {
               <span className="text-xs font-bold bg-white/10 px-2 py-1 rounded-full">{selectedMessages.length} محدد</span>
               <button 
                 onClick={() => {
+                  const msgs = messages.filter(m => selectedMessages.includes(m.id)).sort((a,b) => a.timestamp - b.timestamp);
+                  const combinedText = msgs.map(m => m.text).join('\n---\n');
+                  setForwardingMsg({ id: 'bulk', type: 'text', text: combinedText, senderId: currentUser, timestamp: Date.now(), status: 'sent', reactions: {} });
+                  setIsMultiSelect(false);
+                  setSelectedMessages([]);
+                }}
+                className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"
+                title="تحويل كَمجموعة"
+              >
+                <Share2 size={20} />
+              </button>
+              <button 
+                onClick={() => {
+                  const msgs = messages.filter(m => selectedMessages.includes(m.id)).sort((a,b) => a.timestamp - b.timestamp);
+                  const groupedText = msgs.map(m => m.text).join(' | ');
+                  setReplyingTo({ id: 'bulk', type: 'text', text: groupedText, senderId: msgs[0]?.senderId || currentUser, timestamp: Date.now(), status: 'sent', reactions: {} });
+                  setIsMultiSelect(false);
+                  setSelectedMessages([]);
+                }}
+                className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-full transition-colors"
+                title="رد على التحديد"
+              >
+                <Reply size={20} />
+              </button>
+              <button 
+                onClick={() => {
                   selectedMessages.forEach(id => deleteMessage(id));
                   setIsMultiSelect(false);
                   setSelectedMessages([]);

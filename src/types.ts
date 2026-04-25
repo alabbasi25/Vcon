@@ -35,6 +35,9 @@ export interface Task {
   estimatedMinutes: number;
   createdAt: number;
   dueDate?: number;
+  subtasks?: { id: string; title: string; completed: boolean }[];
+  notes?: string;
+  attachments?: string[];
   delegation?: {
     from: UserID;
     reason: string;
@@ -212,6 +215,7 @@ export interface Habit {
   unit: string;
   color: 'blue' | 'emerald' | 'purple';
   lastUpdated: number;
+  isShared?: boolean;
 }
 
 export interface NotificationSettings {
@@ -232,6 +236,7 @@ export interface UserProfile {
   avatar?: string;
   bio?: string;
   joinedAt: number;
+  unitSystem?: 'metric' | 'imperial';
   delegatedSpendingCeiling: number; // Max amount without partner approval
   notificationSettings: NotificationSettings;
   taskSettings: TaskSettings;
@@ -254,13 +259,70 @@ export interface HobbyProject {
   reactions: { userId: UserID, type: string }[];
 }
 
-export interface TimeCapsuleMessage {
+export type PrivacyStateLevel = 'private' | 'view_only' | 'collaborative';
+export type NotificationState = 'active' | 'silent' | 'muted';
+
+export interface MemoryPulse {
   id: string;
-  authorId: UserID;
+  creatorId: string;
+  category: string; // 'morning' | 'evening' | 'weekend'
+  type: 'image' | 'text' | 'audio' | 'mood';
+  content: string; // text or url
+  mood?: number;
+  privacy: PrivacyStateLevel;
+  notification: NotificationState;
+  createdAt: number;
+  isDeleted: boolean; // For trash bin
+}
+
+export interface FutureOrbit {
+  id: string;
+  creatorId: string;
+  category: string; // 'thursday_night', 'eid', 'anniversary', etc.
+  title: string;
+  budgetLimit: number;
+  actualSpent: number;
+  activities: string[];
+  privacy: PrivacyStateLevel;
+  notification: NotificationState;
+  date: number; // Scheduled date
+  aiControlled: boolean;
+  isDeleted: boolean;
+}
+
+export interface CapsuleEntity {
+  id: string;
+  creatorId: string;
+  category: string; // 'future_letter', 'hidden_gift', 'kids_message'
+  title: string;
   content: string;
-  targetDate: number;
-  isUnlocked: boolean;
-  timestamp: number;
+  savingsObjective: number; // Budget allocated
+  savedAmount: number;
+  openDate: number; // Lock until
+  showCountdown: boolean;
+  smartHint: string;
+  privacy: PrivacyStateLevel;
+  notification: NotificationState;
+  isDeleted: boolean;
+}
+
+export interface AISettings {
+  responseStyle: 'romantic' | 'practical' | 'funny' | 'calm';
+  responseLength: 'short' | 'medium' | 'detailed';
+  financialBoldness: 'economic' | 'luxury';
+  proactiveness: 'proactive' | 'reactive';
+  location: string;
+  userPreferences: string;
+}
+
+export interface MemoryEtherState {
+  pulses: MemoryPulse[];
+  orbits: FutureOrbit[];
+  capsules: CapsuleEntity[];
+  aiSettings: AISettings;
+  pulseCategories: string[];
+  orbitCategories: string[];
+  capsuleCategories: string[];
 }
 
 export interface DeadManSwitch {
@@ -383,7 +445,7 @@ export interface KokabState {
   library: Book[];
   focusStates: Record<UserID, FocusState>;
   hydrationLogs: HydrationLog[];
-  timeCapsules: TimeCapsuleMessage[];
+  memoryEther: MemoryEtherState;
   geoCapsules: GeoTimeCapsule[];
   profiles: Record<UserID, UserProfile>;
   streaks: Record<UserID, Streak>;
@@ -396,7 +458,16 @@ export interface KokabState {
   priorityConfigs: PriorityConfig[];
 }
 
+export interface QuranTarget {
+  id: string;
+  type: 'read' | 'memorize';
+  rangeName: string;
+  targetVerses: number;
+  completedVerses: Record<UserID, number>;
+}
+
 export interface QuranTracker {
+  targets: QuranTarget[];
   logs: Record<UserID, DailyQuranLog[]>;
   totalVerses: number;
 }

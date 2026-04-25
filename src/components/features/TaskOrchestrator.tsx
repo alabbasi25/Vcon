@@ -31,6 +31,7 @@ export const TaskOrchestrator: React.FC = () => {
   const { 
     tasks, 
     addTask, 
+    updateTask,
     completeTask, 
     deleteTask,
     delegateTask, 
@@ -54,6 +55,7 @@ export const TaskOrchestrator: React.FC = () => {
   const [showRoulette, setShowRoulette] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   
   const [filterPriority, setFilterPriority] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
   const [filterCategory, setFilterCategory] = useState<'all' | 'home' | 'work' | 'personal'>('all');
@@ -106,7 +108,10 @@ export const TaskOrchestrator: React.FC = () => {
       return matchesPriority && matchesCategory && matchesAssignee && matchesDate;
     });
 
-    if (sortBy === 'dueDate') {
+    if (sortBy === 'priority') {
+      const pMap = { urgent: 0, high: 1, medium: 2, low: 3 };
+      result.sort((a, b) => pMap[a.priority] - pMap[b.priority]);
+    } else if (sortBy === 'dueDate') {
       result.sort((a, b) => (a.dueDate || Infinity) - (b.dueDate || Infinity));
     } else {
       result.sort((a, b) => b.createdAt - a.createdAt);
@@ -334,6 +339,7 @@ export const TaskOrchestrator: React.FC = () => {
                     >
                       <option value="newest" className="text-black">الأحدث أولاً</option>
                       <option value="dueDate" className="text-black">حسب الموعد</option>
+                      <option value="priority" className="text-black">حسب الأولوية</option>
                     </select>
                     <ChevronDown size={12} className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" />
                   </div>
@@ -457,6 +463,7 @@ export const TaskOrchestrator: React.FC = () => {
                 onDelete={() => setConfirmDelete(task.id)}
                 onDelegate={() => delegateTask(task.id, partner, 'توزيع')}
                 onRoulette={() => toggleRouletteTask(task.id)}
+                onClick={() => setSelectedTask(task)}
                 isInRoulette={rouletteTasks.includes(task.id)}
               />
             ))}
@@ -477,6 +484,7 @@ export const TaskOrchestrator: React.FC = () => {
                 task={task} 
                 isPartner
                 onRoulette={() => toggleRouletteTask(task.id)}
+                onClick={() => setSelectedTask(task)}
                 isInRoulette={rouletteTasks.includes(task.id)}
               />
             ))}
@@ -492,6 +500,13 @@ export const TaskOrchestrator: React.FC = () => {
             onSubmit={handleAdd} 
             newTask={newTask} 
             setNewTask={setNewTask} 
+          />
+        )}
+        {selectedTask && (
+          <TaskDetailsModal
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={updateTask}
           />
         )}
         {showRoulette && (
@@ -527,9 +542,10 @@ const EnhancedTaskCard: React.FC<{
   onDelete?: () => void;
   onDelegate?: () => void;
   onRoulette: () => void;
+  onClick?: () => void;
   isInRoulette: boolean;
   isPartner?: boolean;
-}> = ({ task, onComplete, onDelete, onDelegate, onRoulette, isInRoulette, isPartner }) => {
+}> = ({ task, onComplete, onDelete, onDelegate, onRoulette, onClick, isInRoulette, isPartner }) => {
   const { priorityConfigs, getAITaskSuggestion } = usePlanet();
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
@@ -541,7 +557,8 @@ const EnhancedTaskCard: React.FC<{
   const isOverdue = task.dueDate && task.dueDate < Date.now() && task.status !== 'completed';
   const priorityColor = priorityConfigs.find(c => c.priority === task.priority)?.color || 'bg-blue-500';
 
-  const handleAiSuggestion = async () => {
+  const handleAiSuggestion = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (aiSuggestion) {
       setAiSuggestion(null);
       return;
@@ -595,106 +612,131 @@ const EnhancedTaskCard: React.FC<{
         dragConstraints={{ left: 0, right: 150 }}
         style={{ x, opacity }}
         onDragEnd={handleDragEnd}
-        className={`glass-card p-6 space-y-4 relative z-10 border-white/5 ${isPartner ? 'opacity-80' : 'cursor-grab active:cursor-grabbing'}`}
+        className={`glass-card relative z-10 border-white/5 ${isPartner ? 'opacity-80' : 'cursor-grab active:cursor-grabbing'}`}
       >
-        <div className="flex justify-between items-start">
-          <div className="flex gap-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors bg-opacity-20 ${priorityColor.replace('bg-', 'text-')} ${priorityColor.replace('bg-', 'bg-')}/20`}>
-              <CategoryIcon category={task.category} />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-black text-base">{task.title}</h4>
-                <button 
-                  onClick={handleAiSuggestion}
-                  disabled={isAiLoading}
-                  className="p-1.5 rounded-lg glass text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors disabled:opacity-50"
-                  title="اقتراح تنفيذ المهمة"
-                >
-                  <Sparkles size={12} className={isAiLoading ? 'animate-pulse' : ''} />
-                </button>
-                {isOverdue && (
-                  <motion.span 
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[8px] font-black uppercase tracking-tighter"
+        <div className="p-6 space-y-4">
+          <div className="flex justify-between items-start">
+            <div className="flex gap-4 cursor-pointer" onClick={onClick}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors bg-opacity-20 ${priorityColor.replace('bg-', 'text-')} ${priorityColor.replace('bg-', 'bg-')}/20`}>
+                <CategoryIcon category={task.category} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-base">{task.title}</h4>
+                  <button 
+                    onClick={handleAiSuggestion}
+                    disabled={isAiLoading}
+                    className="p-1.5 rounded-lg glass text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors disabled:opacity-50"
+                    title="اقتراح تنفيذ المهمة"
                   >
-                    <AlertCircle size={8} /> متأخرة
-                  </motion.span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <PriorityBadge priority={task.priority} />
-                <span className="text-[10px] font-bold opacity-40 flex items-center gap-1">
-                  <CategoryIcon category={task.category} />
-                  {task.category === 'home' ? 'منزلي' : task.category === 'work' ? 'عمل' : task.category === 'personal' ? 'شخصي' : 'أخرى'}
-                </span>
-              </div>
-            </div>
-          </div>
-          {!isPartner && (
-            <button 
-              onClick={onDelete}
-              className="p-2 rounded-xl hover:bg-rose-500/10 text-rose-500/40 hover:text-rose-500 transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
-        
-        <AnimatePresence>
-          {aiSuggestion && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 leading-relaxed font-medium">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={14} />
-                  <span className="font-black uppercase tracking-widest text-[8px]">اقتراح AI Oracle</span>
+                    <Sparkles size={12} className={isAiLoading ? 'animate-pulse' : ''} />
+                  </button>
+                  {isOverdue && (
+                    <motion.span 
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 1, repeat: Infinity }}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[8px] font-black uppercase tracking-tighter"
+                    >
+                      <AlertCircle size={8} /> متأخرة
+                    </motion.span>
+                  )}
                 </div>
-                {aiSuggestion}
+                <div className="flex items-center gap-2">
+                  <PriorityBadge priority={task.priority} />
+                  <span className="text-[10px] font-bold opacity-40 flex items-center gap-1">
+                    <CategoryIcon category={task.category} />
+                    {task.category === 'home' ? 'منزلي' : task.category === 'work' ? 'عمل' : task.category === 'personal' ? 'شخصي' : 'أخرى'}
+                  </span>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="flex items-center justify-between pt-2 border-t border-white/5">
-          <div className="flex items-center gap-4">
-            {task.dueDate && (
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
-                task.dueDate < Date.now() ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 'bg-white/5 border-white/10 text-white/60'
-              }`}>
-                <Calendar size={12} />
-                <span className="text-[10px] font-bold">
-                  {new Date(task.dueDate).toLocaleDateString('ar-EG', { month: 'long', day: 'numeric' })}
-                </span>
-              </div>
-            )}
-            <div className="flex items-center gap-1 text-[10px] font-bold opacity-40">
-              <Clock size={12} />
-              {task.estimatedMinutes} دقيقة
             </div>
-          </div>
-
-          <div className="flex gap-1">
-            <button 
-              onClick={onRoulette}
-              className={`p-2 rounded-xl transition-colors ${isInRoulette ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'glass text-amber-500 hover:bg-amber-500/10'}`}
-            >
-              <RotateCw size={16} />
-            </button>
             {!isPartner && (
               <button 
-                onClick={onDelegate}
-                className="p-2 rounded-xl glass text-blue-500 hover:bg-blue-500/10 transition-colors"
+                onClick={(e) => { e.stopPropagation(); if(onDelete) onDelete(); }}
+                className="p-2 rounded-xl hover:bg-rose-500/10 text-rose-500/40 hover:text-rose-500 transition-colors"
               >
-                <ArrowLeftRight size={16} />
+                <Trash2 size={16} />
               </button>
             )}
           </div>
+          
+          <AnimatePresence>
+            {aiSuggestion && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 leading-relaxed font-medium">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles size={14} />
+                    <span className="font-black uppercase tracking-widest text-[8px]">اقتراح AI Oracle</span>
+                  </div>
+                  {aiSuggestion}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+            <div className="flex items-center gap-4 cursor-pointer" onClick={onClick}>
+              {task.dueDate && (
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
+                  task.dueDate < Date.now() && task.status !== 'completed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 'bg-white/5 border-white/10 text-white/60'
+                }`}>
+                  <Calendar size={12} />
+                  <span className="text-[10px] font-bold">
+                    {new Date(task.dueDate).toLocaleDateString('ar-EG', { month: 'long', day: 'numeric' })}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-1 text-[10px] font-bold opacity-40">
+                <Clock size={12} />
+                {task.estimatedMinutes} دقيقة
+              </div>
+              {(task.subtasks?.length > 0 || task.notes) && (
+                <div className="flex items-center gap-1 text-[10px] font-bold text-[var(--color-primary)]">
+                  تفاصيل إضافية
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+              <button 
+                onClick={onRoulette}
+                className={`p-2 rounded-xl transition-colors ${isInRoulette ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'glass text-amber-500 hover:bg-amber-500/10'}`}
+              >
+                <RotateCw size={16} />
+              </button>
+              {!isPartner && (
+                <button 
+                  onClick={onDelegate}
+                  className="p-2 rounded-xl glass text-blue-500 hover:bg-blue-500/10 transition-colors"
+                >
+                  <ArrowLeftRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {task.subtasks && task.subtasks.length > 0 && (
+            <div className="pt-3 cursor-pointer" onClick={onClick}>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">المهام الفرعية</span>
+                <span className="text-[10px] font-black text-[var(--color-primary)]">
+                  {Math.round((task.subtasks.filter((st: any) => st.completed).length / task.subtasks.length) * 100)}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(task.subtasks.filter((st: any) => st.completed).length / task.subtasks.length) * 100}%` }}
+                  className="h-full bg-[var(--color-primary)]"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
@@ -716,6 +758,99 @@ const PriorityBadge: React.FC<{ priority: string }> = ({ priority }) => {
     <span className={`text-[10px] font-black ${color.replace('bg-', 'text-')}`}>
       {label}
     </span>
+  );
+};
+
+const TaskDetailsModal: React.FC<{ task: any; onClose: () => void; onUpdate: (id: string, updates: any) => void }> = ({ task, onClose, onUpdate }) => {
+  const [subtasks, setSubtasks] = useState(task.subtasks || []);
+  const [notes, setNotes] = useState(task.notes || '');
+
+  const toggleSubtask = (idx: number) => {
+    const updated = [...subtasks];
+    updated[idx].completed = !updated[idx].completed;
+    setSubtasks(updated);
+    onUpdate(task.id, { subtasks: updated });
+  };
+
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value);
+    onUpdate(task.id, { notes: e.target.value });
+  };
+
+  const addSubtask = () => {
+    const title = prompt('عنوان المهمة الفرعية:');
+    if (title) {
+      const updated = [...subtasks, { id: Math.random().toString(), title, completed: false }];
+      setSubtasks(updated);
+      onUpdate(task.id, { subtasks: updated });
+    }
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0" />
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+        animate={{ scale: 1, opacity: 1, y: 0 }} 
+        exit={{ scale: 0.9, opacity: 0, y: 20 }} 
+        className="modal-content max-h-[90vh] overflow-y-auto no-scrollbar"
+      >
+        <div className="flex justify-between items-center mb-8">
+          <div className="space-y-1">
+            <h3 className="text-2xl font-black">{task.title}</h3>
+            <p className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase tracking-widest">تفاصيل المهمة</p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 rounded-full glass flex items-center justify-center hover:bg-rose-500/10 hover:text-rose-500 transition-all">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase opacity-50 tracking-widest px-1">المهام الفرعية</label>
+              <button 
+                onClick={addSubtask}
+                className="text-[10px] font-bold text-[var(--color-primary)] hover:opacity-80 transition-colors flex items-center gap-1"
+              >
+                <Plus size={12} /> إضافة
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {subtasks.length === 0 && <div className="text-xs opacity-40 italic">لا توجد مهام فرعية.</div>}
+              {subtasks.map((st: any, idx: number) => (
+                <div key={st.id} className="flex items-center gap-3 glass p-3 rounded-xl border border-white/5 cursor-pointer" onClick={() => toggleSubtask(idx)}>
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors
+                    ${st.completed ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-white/20 text-transparent'}`}
+                  >
+                    <CheckCircle2 size={12} />
+                  </div>
+                  <span className={`text-sm font-bold ${st.completed ? 'line-through opacity-40' : ''}`}>{st.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase opacity-50 tracking-widest px-1">الملاحظات والوصف</label>
+            <textarea 
+              value={notes}
+              onChange={handleNotesChange}
+              placeholder="اكتب ملاحظاتك هنا..."
+              className="w-full h-32 bg-[var(--color-bg-surface)]/30 border border-[var(--color-border)]/50 rounded-2xl px-5 py-4 text-sm text-[var(--color-text-primary)] outline-none transition-all focus:border-[var(--color-primary)] resize-none"
+            />
+          </div>
+          
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase opacity-50 tracking-widest px-1">المرفقات</label>
+            <div className="glass p-6 rounded-2xl border border-white/5 border-dashed flex flex-col items-center justify-center gap-2 opacity-50 text-center">
+              <span className="text-xs font-bold w-full">يمكن إرفاق الصور والملفات هنا (قريباً)</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

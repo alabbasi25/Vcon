@@ -18,10 +18,13 @@ import {
   X,
   Clock,
   Check,
-  Lock
+  Lock,
+  MessageCircle,
+  HelpCircle
 } from 'lucide-react';
 import { usePlanet } from '../../context/KokabContext';
 import { ModernInput } from '../ui/ModernInput';
+import { getAINoorDailyContent, getAINoorQuiz } from '../../services/aiService';
 
 const AZKAR_DATA = [
   { id: 'sabah', title: 'أذكار الصباح', icon: <Sun size={20} />, color: 'bg-amber-500', target: 50 },
@@ -37,36 +40,90 @@ export const WorshipSync: React.FC = () => {
     populateTestData, 
     quranTracker, 
     logQuranVerses,
+    addQuranTarget,
+    updateQuranTargetProgress,
     athkar,
     incrementAthkarCount,
-    addAthkar
+    addAthkar,
+    addNotification,
+    sendMessage
   } = usePlanet();
   
-  const [activeView, setActiveView] = useState<'quran' | 'azkar'>('azkar');
+  const [activeView, setActiveView] = useState<'quran' | 'azkar' | 'minhaaj' | 'noor'>('azkar');
+  
+  // Azkar State
   const [selectedCategory, setSelectedCategory] = useState<'morning' | 'evening' | 'custom'>('morning');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAthkar, setNewAthkar] = useState({ 
-    text: '', 
-    target: 33, 
-    category: 'custom' as any,
-    isDaily: true,
-    reminderTime: '',
-    startTime: '',
-    endTime: ''
+    text: '', target: 33, category: 'custom' as any, isDaily: true, reminderTime: '', startTime: '', endTime: '' 
   });
+
+  // Quran Goal State
+  const [quranGoalType, setQuranGoalType] = useState<'read' | 'memorize'>('read');
+  const [quranRange, setQuranRange] = useState('');
+  const [quranTargetVerses, setQuranTargetVerses] = useState(10);
+  const [quranRecurrence, setQuranRecurrence] = useState<'daily'|'weekly'|'monthly'>('daily');
+
+  // Minhaaj State
+  const [sharedGoals, setSharedGoals] = useState({ fasting: false, nightPrayer: false, charity: false });
+
+  // Noor State
+  const [noorDaily, setNoorDaily] = useState<string | null>(null);
+  const [noorQuiz, setNoorQuiz] = useState<any>(null);
+  const [noorLoading, setNoorLoading] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizAnswered, setQuizAnswered] = useState(false);
+  const [myQuizAnswer, setMyQuizAnswer] = useState('');
+
+  const loadNoorContent = async () => {
+    if (!noorDaily) {
+      setNoorLoading(true);
+      const content = await getAINoorDailyContent();
+      setNoorDaily(content);
+      setNoorLoading(false);
+    }
+  };
+
+  const loadNoorQuiz = async () => {
+    setQuizLoading(true);
+    setQuizAnswered(false);
+    setMyQuizAnswer('');
+    const quiz = await getAINoorQuiz();
+    setNoorQuiz(quiz);
+    setQuizLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeView === 'noor' && !noorDaily) {
+      loadNoorContent();
+    }
+  }, [activeView]);
+
+  const handlePrayForPartner = () => {
+    sendMessage({
+      id: Math.random().toString(),
+      senderId: currentUser,
+      text: `لقد قام (${currentUser === 'F' ? 'فهد' : 'بشرى'}) بالدعاء لك بظهر الغيب اليوم 🤍`,
+      timestamp: Date.now(),
+      type: 'text',
+      status: 'sent',
+      reactions: {}
+    });
+    addNotification({
+      title: 'دعاء الشريك المحب',
+      content: 'تم إرسال إشعار الدُّعاء لـ شريكك بنجاح.',
+      type: 'spiritual'
+    });
+  };
 
   const isAthkarAvailable = (item: any) => {
     if (!item.startTime || !item.endTime) return { available: true };
-    
     const now = new Date();
     const currentTime = now.getHours() * 60 + now.getMinutes();
-    
     const [startH, startM] = item.startTime.split(':').map(Number);
     const [endH, endM] = item.endTime.split(':').map(Number);
-    
     const startTime = startH * 60 + startM;
     const endTime = endH * 60 + endM;
-    
     const available = currentTime >= startTime && currentTime <= endTime;
     return { available, reason: `متاح فقط بين ${item.startTime} و ${item.endTime}` };
   };
@@ -82,7 +139,6 @@ export const WorshipSync: React.FC = () => {
   const today = new Date().toISOString().split('T')[0];
   const myTodayLog = quranTracker.logs[currentUser].find(l => l.date === today)?.verses || 0;
   const partnerTodayLog = quranTracker.logs[partnerId].find(l => l.date === today)?.verses || 0;
-  
   const totalVerses = 6236; 
 
   const filteredAthkar = athkar.filter(a => {
@@ -96,32 +152,16 @@ export const WorshipSync: React.FC = () => {
     } else if (activeSession) {
       syncTasbeeh(activeSession.id, (activeSession.syncCounter?.[currentUser] || 0) + 1);
     }
-
-    if (window.navigator.vibrate) {
-      window.navigator.vibrate(50);
-    }
+    if (window.navigator.vibrate) window.navigator.vibrate(50);
   };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    
     let startTime = newAthkar.startTime;
     let endTime = newAthkar.endTime;
-
-    if (newAthkar.category === 'morning' && !startTime) {
-      startTime = '05:00';
-      endTime = '10:00';
-    } else if (newAthkar.category === 'evening' && !startTime) {
-      startTime = '17:00';
-      endTime = '22:00';
-    }
-
-    addAthkar({
-      ...newAthkar,
-      startTime: startTime || undefined,
-      endTime: endTime || undefined,
-      notificationTime: newAthkar.reminderTime || undefined
-    });
+    if (newAthkar.category === 'morning' && !startTime) { startTime = '05:00'; endTime = '10:00'; }
+    else if (newAthkar.category === 'evening' && !startTime) { startTime = '17:00'; endTime = '22:00'; }
+    addAthkar({ ...newAthkar, startTime: startTime || undefined, endTime: endTime || undefined, notificationTime: newAthkar.reminderTime || undefined });
     setShowAddModal(false);
     setNewAthkar({ text: '', target: 33, category: 'custom', isDaily: true, reminderTime: '', startTime: '', endTime: '' });
   };
@@ -140,10 +180,10 @@ export const WorshipSync: React.FC = () => {
         </div>
         
         {/* View Switcher Tabs */}
-        <div className="flex p-1 bg-white/5 rounded-2xl md:w-64">
+        <div className="flex p-1 bg-white/5 rounded-2xl w-full md:w-auto overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveView('azkar')}
-            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
               activeView === 'azkar' ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'opacity-40 hover:opacity-100'
             }`}
           >
@@ -151,17 +191,33 @@ export const WorshipSync: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveView('quran')}
-            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
               activeView === 'quran' ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'opacity-40 hover:opacity-100'
             }`}
           >
             الورد القرآني
           </button>
+          <button
+            onClick={() => setActiveView('minhaaj')}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+              activeView === 'minhaaj' ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'opacity-40 hover:opacity-100'
+            }`}
+          >
+            المنهاج
+          </button>
+          <button
+            onClick={() => setActiveView('noor')}
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+              activeView === 'noor' ? 'bg-[var(--color-primary)] text-white shadow-lg' : 'opacity-40 hover:opacity-100'
+            }`}
+          >
+            AI نور
+          </button>
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        {activeView === 'azkar' ? (
+        {activeView === 'azkar' && (
           <motion.div
             key="azkar-view"
             initial={{ opacity: 0, x: -20 }}
@@ -282,7 +338,7 @@ export const WorshipSync: React.FC = () => {
               <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
                 <motion.div 
                   className="h-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"
-                  animate={{ width: `${(activeSession.progress / activeSession.target) * 100}%` }}
+                  animate={{ width: `${((activeSession?.progress || 0) / (activeSession?.target || 1)) * 100}%` }}
                 />
               </div>
               
@@ -332,7 +388,9 @@ export const WorshipSync: React.FC = () => {
               </p>
             </section>
           </motion.div>
-        ) : (
+        )}
+
+        {activeView === 'quran' && (
           <motion.div
             key="quran-view"
             initial={{ opacity: 0, x: 20 }}
@@ -341,7 +399,6 @@ export const WorshipSync: React.FC = () => {
             className="space-y-6"
           >
             <section className="glass-card p-6 md:p-8 space-y-8 border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden">
-               {/* Decorative Background Element */}
                <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
                
                <div className="flex justify-between items-center relative z-10">
@@ -351,22 +408,144 @@ export const WorshipSync: React.FC = () => {
                    </div>
                    <div>
                      <h3 className="text-lg font-black italic">نور الهدى</h3>
-                     <p className="text-[10px] opacity-60 font-medium">سجل ختمتكم المشتركة لعام 2024</p>
+                     <p className="text-[10px] opacity-60 font-medium">سجل ختمتكم واستمرارية الحفظ/القراءة</p>
                    </div>
                  </div>
                  <div className="text-right">
                    <div className="text-2xl font-black text-emerald-500 tabular-nums">
                      {Math.round(((myTodayLog + partnerTodayLog) / totalVerses) * 100 * 10 || 0) / 10}%
                    </div>
-                   <div className="text-[8px] font-black opacity-30 uppercase tracking-widest">إنجاز الختمة</div>
+                   <div className="text-[8px] font-black opacity-30 uppercase tracking-widest">إنجاز الختمة الكلية</div>
                  </div>
                </div>
+
+               {/* Configurations for Quran tracking */}
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10 border-t border-white/5 pt-6 mt-6">
+                 <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase opacity-40 px-2">نوع الهدف</label>
+                   <div className="flex bg-white/5 rounded-xl p-1">
+                     <button onClick={() => setQuranGoalType('read')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${quranGoalType === 'read' ? 'bg-emerald-500 text-white' : 'opacity-50'}`}>قراءة</button>
+                     <button onClick={() => setQuranGoalType('memorize')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${quranGoalType === 'memorize' ? 'bg-emerald-500 text-white' : 'opacity-50'}`}>حفظ</button>
+                   </div>
+                 </div>
+                 <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase opacity-40 px-2">النطاق</label>
+                   <input 
+                     type="text" 
+                     placeholder="مثال: سورة الكهف، الجزء 30..." 
+                     value={quranRange}
+                     onChange={(e) => setQuranRange(e.target.value)}
+                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold outline-none"
+                   />
+                 </div>
+                 <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase opacity-40 px-2">التكرار والجدولة</label>
+                   <div className="flex gap-2">
+                     <select 
+                       value={quranRecurrence}
+                       onChange={(e) => setQuranRecurrence(e.target.value as any)}
+                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold outline-none appearance-none"
+                     >
+                       <option value="daily" className="text-black">يومي</option>
+                       <option value="weekly" className="text-black">أسبوعي</option>
+                       <option value="monthly" className="text-black">شهري</option>
+                     </select>
+                     <input 
+                       type="time" 
+                       className="w-24 bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold outline-none text-center"
+                     />
+                   </div>
+                 </div>
+                 <div className="space-y-1.5 flex-[0.5]">
+                   <label className="text-[10px] font-black uppercase opacity-40 px-2">الآيات</label>
+                   <input 
+                     type="number"
+                     min="1"
+                     value={quranTargetVerses}
+                     onChange={(e) => setQuranTargetVerses(Number(e.target.value))}
+                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-bold outline-none text-center"
+                   />
+                 </div>
+               </div>
+
+               <div className="flex justify-end mt-2 relative z-10 border-b border-white/5 pb-4 mb-4">
+                 <button 
+                   onClick={() => {
+                     if (quranRange) {
+                       addQuranTarget({ type: quranGoalType, rangeName: quranRange, targetVerses: quranTargetVerses });
+                       setQuranRange('');
+                     }
+                   }}
+                   className="px-6 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-black hover:bg-emerald-600 transition-colors"
+                 >
+                   إضافة الهدف
+                 </button>
+               </div>
+
+               {/* Target List */}
+               {quranTracker.targets && quranTracker.targets.length > 0 && (
+                 <div className="space-y-4 relative z-10 border-b border-white/5 pb-6 mb-6">
+                   <h4 className="text-xs font-black uppercase tracking-widest opacity-60">أهداف النطاقات</h4>
+                   <div className="grid grid-cols-1 gap-4">
+                     {quranTracker.targets.map(target => (
+                       <div key={target.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                         <div className="flex items-center gap-3">
+                           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+                             {target.type === 'read' ? <BookOpen size={20} /> : <Zap size={20} />}
+                           </div>
+                           <div>
+                             <h5 className="font-bold text-sm text-emerald-400">{target.rangeName}</h5>
+                             <p className="text-[10px] opacity-60">الهدف: {target.targetVerses} آيات | {target.type === 'read' ? 'قراءة' : 'حفظ'}</p>
+                           </div>
+                         </div>
+                         <div className="flex items-center justify-end gap-3 w-full md:w-auto">
+                           <div className="w-full md:w-32">
+                             <div className="flex justify-between text-[10px] font-bold mb-1 opacity-60">
+                               <span>{target.completedVerses[currentUser] || 0}</span>
+                               <span>{Math.round(((target.completedVerses[currentUser] || 0) / Math.max(1, target.targetVerses)) * 100)}%</span>
+                             </div>
+                             <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden">
+                               <motion.div 
+                                 initial={{ width: 0 }}
+                                 animate={{ width: `${Math.min(100, ((target.completedVerses[currentUser] || 0) / Math.max(1, target.targetVerses)) * 100)}%` }}
+                                 className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                               />
+                             </div>
+                           </div>
+                           <div className="flex border border-white/10 rounded-lg overflow-hidden shrink-0 h-8">
+                             <input 
+                               type="number"
+                               min="1"
+                               placeholder="+1"
+                               className="w-12 bg-white/5 text-xs text-center outline-none px-1"
+                               id={`inc-${target.id}`}
+                             />
+                             <button 
+                               onClick={() => {
+                                 const input = document.getElementById(`inc-${target.id}`) as HTMLInputElement;
+                                 const val = parseInt(input.value) || 1;
+                                 if (val > 0) {
+                                   updateQuranTargetProgress(target.id, val);
+                                   input.value = '';
+                                 }
+                               }}
+                               className="px-2 bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-colors text-[10px]"
+                             >
+                               أتممت
+                             </button>
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                  <div className="space-y-4 p-5 rounded-3xl bg-white/5 border border-white/5 backdrop-blur-sm">
                    <div className="flex justify-between items-end">
                      <div>
-                        <span className="text-[10px] font-black opacity-40 uppercase tracking-wider block mb-1">وردك اليوم</span>
+                        <span className="text-[10px] font-black opacity-40 uppercase tracking-wider block mb-1">محصلتك اليوم</span>
                         <span className="text-2xl font-black text-emerald-400 tabular-nums">{myTodayLog}</span>
                         <span className="text-[10px] opacity-40 mr-1 italic">آية</span>
                      </div>
@@ -384,7 +563,7 @@ export const WorshipSync: React.FC = () => {
                  <div className="space-y-4 p-5 rounded-3xl bg-white/5 border border-white/5 backdrop-blur-sm">
                    <div className="flex justify-between items-end">
                      <div>
-                        <span className="text-[10px] font-black opacity-40 uppercase tracking-wider block mb-1">ورد الشريك</span>
+                        <span className="text-[10px] font-black opacity-40 uppercase tracking-wider block mb-1">الشريك</span>
                         <span className="text-2xl font-black text-blue-400 tabular-nums">{partnerTodayLog}</span>
                         <span className="text-[10px] opacity-40 mr-1 italic">آية</span>
                      </div>
@@ -400,12 +579,12 @@ export const WorshipSync: React.FC = () => {
                  </div>
                </div>
 
-               <div className="flex flex-col sm:flex-row gap-3 pt-4 relative z-10">
+               <div className="flex flex-col sm:flex-row gap-3 pt-4 relative z-10 border-t border-white/5 mt-4">
                  <div className="relative flex-1">
                    <input 
                      type="number"
                      min="1"
-                     placeholder="كم آية قرأت اليوم؟"
+                     placeholder="كم آية أتممت اليوم؟"
                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-center"
                      id="quranVersesInput"
                    />
@@ -422,14 +601,181 @@ export const WorshipSync: React.FC = () => {
                    className="px-8 py-4 rounded-2xl bg-emerald-600 shadow-xl shadow-emerald-600/20 text-white text-xs font-black flex items-center justify-center gap-3 transition-transform active:scale-95 group"
                  >
                    <CheckCircle2 size={18} className="group-hover:rotate-12 transition-transform" /> 
-                   تسجيل القراءة
+                   تسجيل الإنجاز
                  </button>
                </div>
-
-               <p className="text-[9px] opacity-30 text-center italic mt-4">
-                 يتم مزامنة التقدم فورياً مع الشريك لبث روح التنافس في الخير
-               </p>
             </section>
+          </motion.div>
+        )}
+
+        {activeView === 'minhaaj' && (
+          <motion.div
+            key="minhaaj-view"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="space-y-6"
+          >
+            <section className="glass-card p-6 md:p-8 space-y-6">
+              <div className="flex items-center gap-4 border-b border-white/10 pb-6 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
+                  <Heart size={28} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">المنهاج (أهداف مشتركة)</h3>
+                  <p className="text-xs opacity-60">"تَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَى"</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 glass rounded-2xl cursor-pointer hover:border-indigo-500/50 transition-colors" onClick={() => setSharedGoals(prev => ({ ...prev, fasting: !prev.fasting }))}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${sharedGoals.fasting ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/20 text-transparent'}`}>
+                      <Check size={14} />
+                    </div>
+                    <span className="font-bold text-sm">صيام نافلة (مثال: الإثنين والخميس)</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 glass rounded-2xl cursor-pointer hover:border-indigo-500/50 transition-colors" onClick={() => setSharedGoals(prev => ({ ...prev, nightPrayer: !prev.nightPrayer }))}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${sharedGoals.nightPrayer ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/20 text-transparent'}`}>
+                      <Check size={14} />
+                    </div>
+                    <span className="font-bold text-sm">قيام الليل</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 glass rounded-2xl cursor-pointer hover:border-indigo-500/50 transition-colors" onClick={() => setSharedGoals(prev => ({ ...prev, charity: !prev.charity }))}>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${sharedGoals.charity ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-white/20 text-transparent'}`}>
+                      <Check size={14} />
+                    </div>
+                    <span className="font-bold text-sm">صدقة السر مشتركة</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-white/5 space-y-4 text-center">
+                <Heart size={32} className="mx-auto text-rose-500 opacity-50" />
+                <div className="space-y-1 mb-4">
+                  <h4 className="font-black text-sm">دعاء بظهر الغيب</h4>
+                  <p className="text-xs opacity-50 max-w-sm mx-auto">لَا يَرُدُّ القَضَاءَ إِلَّا الدُّعَاءُ.. اكتب دعائك سراً وسيرسل له إشعاراً بأنك دعوت له</p>
+                </div>
+                <div className="flex bg-white/5 max-w-sm mx-auto rounded-full p-1 border border-rose-500/10 focus-within:border-rose-500/50 transition-colors">
+                  <input 
+                    type="text" 
+                    placeholder="اللهم احفظ شريكي..." 
+                    className="flex-1 bg-transparent px-4 text-xs outline-none"
+                    id="prayInput"
+                  />
+                  <button onClick={() => {
+                    handlePrayForPartner();
+                    (document.getElementById('prayInput') as HTMLInputElement).value = '';
+                  }} className="px-6 py-2 rounded-full bg-rose-500/20 text-rose-500 font-bold hover:bg-rose-500 hover:text-white transition-colors text-xs">
+                    إرسال
+                  </button>
+                </div>
+              </div>
+            </section>
+          </motion.div>
+        )}
+
+        {activeView === 'noor' && (
+          <motion.div
+            key="noor-view"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Daily Wisdom */}
+              <section className="glass-card p-6 border-amber-500/20 col-span-full md:col-span-1 flex flex-col">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                    <Sparkles size={20} />
+                  </div>
+                  <h3 className="font-black text-lg text-amber-500">إشراقة نور</h3>
+                </div>
+                <div className="flex-1 bg-white/5 p-6 rounded-3xl relative border border-white/5">
+                   {noorLoading ? (
+                     <div className="h-full min-h-[150px] flex items-center justify-center space-x-2 space-x-reverse opacity-50">
+                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce"></span>
+                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{animationDelay: '0.2s'}}></span>
+                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{animationDelay: '0.4s'}}></span>
+                     </div>
+                   ) : (
+                     <p className="text-sm font-medium leading-loose text-justify opacity-90">{noorDaily}</p>
+                   )}
+                </div>
+                <button onClick={loadNoorContent} className="mt-4 w-full py-3 rounded-xl bg-amber-500/10 text-amber-500 text-xs font-bold hover:bg-amber-500/20 transition-colors">
+                  تحديث الإشراقة
+                </button>
+              </section>
+
+              {/* Quiz System */}
+              <section className="glass-card p-6 border-purple-500/20 col-span-full md:col-span-1 flex flex-col">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center">
+                    <HelpCircle size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-purple-500">مسابقة نور الثنائية</h3>
+                    <p className="text-[10px] opacity-50">اختبر معلوماتك الدينية مع شريكك</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-4">
+                  {!noorQuiz ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 py-8">
+                      <Trophy size={48} className="text-purple-500/30 mb-2" />
+                      <p className="text-xs opacity-60 max-w-[200px]">قم بتوليد سؤال لتبدأ التحدي المعرفي مع شريكك.</p>
+                      <button onClick={loadNoorQuiz} disabled={quizLoading} className="px-6 py-3 rounded-2xl bg-purple-500 text-white font-bold text-sm shadow-lg shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50">
+                        {quizLoading ? 'جاري التوليد...' : 'ابدأ التحدي'}
+                      </button>
+                    </div>
+                  ) : (
+                    <AnimatePresence mode="wait">
+                      {!quizAnswered ? (
+                        <motion.div key="question" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                          <div className="bg-purple-500/10 border border-purple-500/20 p-5 rounded-2xl font-bold text-sm leading-relaxed">
+                            {noorQuiz.question}
+                          </div>
+                          <input 
+                            type="text" 
+                            placeholder="اكتب إجابتك هنا..." 
+                            value={myQuizAnswer}
+                            onChange={e => setMyQuizAnswer(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-purple-500"
+                          />
+                          <button onClick={() => setQuizAnswered(true)} disabled={!myQuizAnswer.trim()} className="w-full py-3 rounded-xl bg-purple-500 text-white font-bold disabled:opacity-50">
+                            اعتماد الإجابة وكشف النتيجة
+                          </button>
+                        </motion.div>
+                      ) : (
+                        <motion.div key="answer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                           <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl space-y-2">
+                             <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">الإجابة الصحيحة</div>
+                             <div className="font-bold text-sm">{noorQuiz.answer}</div>
+                           </div>
+                           
+                           <div className="glass p-5 rounded-2xl space-y-2">
+                             <div className="text-[10px] font-black uppercase tracking-widest opacity-50">السياق / الشرح</div>
+                             <div className="text-xs leading-relaxed opacity-80">{noorQuiz.explanation}</div>
+                           </div>
+                           
+                           <button onClick={loadNoorQuiz} disabled={quizLoading} className="w-full py-3 rounded-xl border border-purple-500 text-purple-500 font-bold hover:bg-purple-500/10 transition-colors disabled:opacity-50">
+                             {quizLoading ? 'جاري التوليد...' : 'سؤال جديد'}
+                           </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  )}
+                </div>
+              </section>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -491,7 +837,22 @@ export const WorshipSync: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                  <div className="pt-2">
+                  <h4 className="text-[9px] font-black uppercase opacity-30 tracking-widest mb-4 px-2">إعدادات إضافية</h4>
+                  <div className="flex items-center justify-between mb-4 px-2">
+                    <span className="text-[10px] font-black uppercase">تتبع يومي مستمر</span>
+                    <button 
+                      type="button"
+                      onClick={() => setNewAthkar(prev => ({ ...prev, isDaily: !prev.isDaily }))}
+                      className={`w-10 h-6 rounded-full transition-colors relative ${newAthkar.isDaily ? 'bg-amber-500' : 'bg-white/10'}`}
+                    >
+                      <motion.div 
+                        layout
+                        className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm"
+                        animate={{ x: newAthkar.isDaily ? 16 : 0 }}
+                      />
+                    </button>
+                  </div>
                   <h4 className="text-[9px] font-black uppercase opacity-30 tracking-widest mb-4 px-2">ضبط الوقت (اختياري)</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">

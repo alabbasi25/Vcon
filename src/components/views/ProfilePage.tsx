@@ -36,6 +36,13 @@ export const ProfilePage: React.FC<{ onSwitchUser: () => void }> = ({ onSwitchUs
     setIsEditing(false);
   };
 
+  const toggleUnitSystem = () => {
+    updateProfile({
+      ...profile,
+      unitSystem: profile.unitSystem === 'imperial' ? 'metric' : 'imperial'
+    });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -191,6 +198,25 @@ export const ProfilePage: React.FC<{ onSwitchUser: () => void }> = ({ onSwitchUs
           <SettingsItem icon={<Bell size={20} />} label="الإشعارات" description="تخصيص تنبيهات النظام والشركاء" />
           <SettingsItem icon={<Calendar size={20} />} label="المزامنة" description="إدارة التقويمات الخارجية" />
           <SettingsItem icon={<Award size={20} />} label="الإنجازات" description="عرض الأوسمة والجوائز المحققة" />
+          <button onClick={toggleUnitSystem} className="w-full p-4 flex items-center justify-between hover:bg-[var(--color-bg-surface)] transition-colors text-right">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-bg-surface)] text-[var(--color-primary)] flex items-center justify-center">
+                <Target size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-bold">وحدات القياس</div>
+                <div className="text-[10px] opacity-50">
+                  {profile.unitSystem === 'imperial' ? 'النظام الإمبراطوري (الرطل، الفهرنهايت)' : 'النظام المتري (كيلوغرام، مئوي)'}
+                </div>
+              </div>
+            </div>
+            <div className="w-10 h-5 rounded-full relative transition-all bg-[var(--color-primary)]">
+              <motion.div 
+                animate={{ x: profile.unitSystem === 'imperial' ? 22 : 2 }}
+                className="absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm"
+              />
+            </div>
+          </button>
         </div>
 
         <motion.button 

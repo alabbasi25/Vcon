@@ -30,7 +30,6 @@ import {
   FocusState,
   HydrationLog,
   NotificationSettings,
-  TimeCapsuleMessage,
   TaskSettings,
   Habit,
   UserProfile,
@@ -41,6 +40,11 @@ import {
   KanbanItem,
   MarginaliaComment,
   GeoTimeCapsule,
+  MemoryEtherState,
+  MemoryPulse,
+  FutureOrbit,
+  CapsuleEntity,
+  AISettings,
   HobbyProject,
   AthkarItem,
   PlanetWeather,
@@ -68,6 +72,7 @@ interface PlanetContextType extends KokabState {
   updateMood: (mood: string) => void;
   setWorkMode: (enabled: boolean) => void;
   addTask: (task: Partial<Task>) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
   completeTask: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   delegateTask: (taskId: string, to: UserID, reason: string) => void;
@@ -94,7 +99,20 @@ interface PlanetContextType extends KokabState {
   updateBookProgress: (bookId: string, page: number) => void;
   toggleFocusMode: (isActive: boolean, task?: string) => void;
   logHydration: (amount: number) => void;
-  addTimeCapsule: (content: string, unlockDate: number) => void;
+  addMemoryPulse: (pulse: Partial<MemoryPulse>) => void;
+  updateMemoryPulse: (id: string, updates: Partial<MemoryPulse>) => void;
+  deleteMemoryPulse: (id: string) => void;
+  
+  addFutureOrbit: (orbit: Partial<FutureOrbit>) => void;
+  updateFutureOrbit: (id: string, updates: Partial<FutureOrbit>) => void;
+  deleteFutureOrbit: (id: string) => void;
+  
+  addCapsule: (capsule: Partial<CapsuleEntity>) => void;
+  updateCapsule: (id: string, updates: Partial<CapsuleEntity>) => void;
+  deleteCapsule: (id: string) => void;
+  
+  updateAISettings: (settings: Partial<AISettings>) => void;
+  updateMemoryEtherCategories: (tab: 'pulse' | 'orbit' | 'capsule', categories: string[]) => void;
   updateHabitProgress: (habitId: string, progress: number) => void;
   addHabit: (habit: Partial<Habit>) => void;
   addTravelPlan: (plan: Partial<TravelPlan>) => void;
@@ -182,6 +200,8 @@ interface PlanetContextType extends KokabState {
   markMessagesRead: () => void;
   // Quran & Mood config
   logQuranVerses: (verses: number) => void;
+  addQuranTarget: (target: Partial<QuranTarget>) => void;
+  updateQuranTargetProgress: (targetId: string, diff: number) => void;
   updateMoodConfig: (mood: string, color: string) => void;
   updatePriorityConfig: (priority: Task['priority'], color: string) => void;
   autoAssignTask: (task: Partial<Task>) => void;
@@ -311,7 +331,22 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
   const [isPartnerTyping, setPartnerTyping] = useState(false);
   const [typingTimer, setTypingTimer] = useState<any>(null);
   const [hydrationLogs, setHydrationLogs] = useState<HydrationLog[]>([]);
-  const [timeCapsules, setTimeCapsules] = useState<TimeCapsuleMessage[]>([]);
+  const [memoryEther, setMemoryEther] = useState<MemoryEtherState>({
+    pulses: [],
+    orbits: [],
+    capsules: [],
+    aiSettings: {
+      responseStyle: 'calm',
+      responseLength: 'medium',
+      financialBoldness: 'economic',
+      proactiveness: 'proactive',
+      location: '',
+      userPreferences: ''
+    },
+    pulseCategories: ['صباحية', 'مسائية', 'عطلة نهاية الأسبوع'],
+    orbitCategories: ['مواعد غراميه', 'إجازات رسمية', 'إجازات خاصة'],
+    capsuleCategories: ['رسالة للمستقبل', 'هدية مخبأة', 'مفاجأة مخططة', 'رسالة للأبناء']
+  });
   const [profiles, setProfiles] = useState<Record<UserID, UserProfile>>({
     F: { 
       userId: 'F', 
@@ -345,6 +380,7 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
     rewards: 342
   });
   const [quranTracker, setQuranTracker] = useState<QuranTracker>({
+    targets: [],
     logs: { F: [], B: [] },
     totalVerses: 6236
   });
@@ -543,6 +579,10 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
     setTimeout(() => {
       setTasks(prev => prev.map(t => t.id === newTask.id ? { ...t, status: 'pending' } : t));
     }, 1000);
+  };
+
+  const updateTask = (taskId: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
   };
 
   const completeTask = (taskId: string) => {
@@ -967,21 +1007,120 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
     setHydrationLogs(prev => [...prev, { userId: currentUser, amount, timestamp: Date.now() }]);
   };
 
-  const addTimeCapsule = (content: string, unlockDate: number) => {
-    const msg: TimeCapsuleMessage = { 
-      id: Math.random().toString(36).substr(2, 9), 
-      authorId: currentUser, 
-      content, 
-      targetDate: unlockDate, 
-      isUnlocked: false,
-      timestamp: Date.now() 
+  const addMemoryPulse = (pulse: Partial<MemoryPulse>) => {
+    const newPulse: MemoryPulse = {
+      id: Math.random().toString(36).substr(2, 9),
+      creatorId: currentUser,
+      category: pulse.category || 'morning',
+      type: pulse.type || 'text',
+      content: pulse.content || '',
+      privacy: pulse.privacy || 'private',
+      notification: pulse.notification || 'active',
+      createdAt: Date.now(),
+      isDeleted: false,
+      ...pulse
     };
-    setTimeCapsules(prev => [...prev, msg]);
+    setMemoryEther(prev => ({ ...prev, pulses: [...prev.pulses, newPulse] }));
+  };
+
+  const updateMemoryPulse = (id: string, updates: Partial<MemoryPulse>) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      pulses: prev.pulses.map(p => p.id === id ? { ...p, ...updates } : p) 
+    }));
+  };
+
+  const deleteMemoryPulse = (id: string) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      pulses: prev.pulses.map(p => p.id === id ? { ...p, isDeleted: true } : p) 
+    }));
+  };
+
+  const addFutureOrbit = (orbit: Partial<FutureOrbit>) => {
+    const newOrbit: FutureOrbit = {
+      id: Math.random().toString(36).substr(2, 9),
+      creatorId: currentUser,
+      category: orbit.category || 'thursday_night',
+      title: orbit.title || '',
+      budgetLimit: orbit.budgetLimit || 0,
+      actualSpent: orbit.actualSpent || 0,
+      activities: orbit.activities || [],
+      privacy: orbit.privacy || 'private',
+      notification: orbit.notification || 'active',
+      date: orbit.date || Date.now() + 86400000,
+      aiControlled: orbit.aiControlled || false,
+      isDeleted: false,
+      ...orbit
+    };
+    setMemoryEther(prev => ({ ...prev, orbits: [...prev.orbits, newOrbit] }));
+  };
+
+  const updateFutureOrbit = (id: string, updates: Partial<FutureOrbit>) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      orbits: prev.orbits.map(o => o.id === id ? { ...o, ...updates } : o) 
+    }));
+  };
+
+  const deleteFutureOrbit = (id: string) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      orbits: prev.orbits.map(o => o.id === id ? { ...o, isDeleted: true } : o) 
+    }));
+  };
+
+  const addCapsule = (capsule: Partial<CapsuleEntity>) => {
+    const newCapsule: CapsuleEntity = {
+      id: Math.random().toString(36).substr(2, 9),
+      creatorId: currentUser,
+      category: capsule.category || 'future_letter',
+      title: capsule.title || '',
+      content: capsule.content || '',
+      savingsObjective: capsule.savingsObjective || 0,
+      savedAmount: capsule.savedAmount || 0,
+      openDate: capsule.openDate || Date.now() + 86400000 * 30,
+      showCountdown: capsule.showCountdown || false,
+      smartHint: capsule.smartHint || '',
+      privacy: capsule.privacy || 'private',
+      notification: capsule.notification || 'active',
+      isDeleted: false,
+      ...capsule
+    };
+    setMemoryEther(prev => ({ ...prev, capsules: [...prev.capsules, newCapsule] }));
+  };
+
+  const updateCapsule = (id: string, updates: Partial<CapsuleEntity>) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      capsules: prev.capsules.map(c => c.id === id ? { ...c, ...updates } : c) 
+    }));
+  };
+
+  const deleteCapsule = (id: string) => {
+    setMemoryEther(prev => ({ 
+      ...prev, 
+      capsules: prev.capsules.map(c => c.id === id ? { ...c, isDeleted: true } : c) 
+    }));
+  };
+
+  const updateAISettings = (settings: Partial<AISettings>) => {
+    setMemoryEther(prev => ({
+      ...prev,
+      aiSettings: { ...prev.aiSettings, ...settings }
+    }));
+  };
+
+  const updateMemoryEtherCategories = (tab: 'pulse' | 'orbit' | 'capsule', categories: string[]) => {
+    setMemoryEther(prev => ({
+      ...prev,
+      [`${tab}Categories`]: categories
+    }));
   };
 
   const updateHabitProgress = (habitId: string, progress: number) => {
     setHabits(prev => {
-      const updatedUserHabits = prev[currentUser].map(h => {
+      const updatedUserHabits = (prev[currentUser] || []).map(h => {
         if (h.id === habitId) {
           const wasCompleted = h.progress >= h.target;
           const isCompleted = progress >= h.target;
@@ -1010,12 +1149,23 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
       target: habit.target || 10,
       unit: habit.unit || '',
       color: habit.color || 'blue',
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
+      isShared: habit.isShared || false
     };
-    setHabits(prev => ({
-      ...prev,
-      [currentUser]: [...prev[currentUser], newHabit]
-    }));
+    
+    setHabits(prev => {
+      const newState = {
+        ...prev,
+        [currentUser]: [...(prev[currentUser] || []), newHabit]
+      };
+      
+      if (newHabit.isShared) {
+        const partner = currentUser === 'F' ? 'B' : 'F';
+        newState[partner] = [...(prev[partner] || []), { ...newHabit, progress: 0 }];
+      }
+      
+      return newState;
+    });
   };
 
   const addTravelPlan = (plan: Partial<TravelPlan>) => {
@@ -1185,6 +1335,35 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
       content: `لقد سجلت قراءة ${verses} آيات اليوم. تبارك الله!`,
       type: 'spiritual'
     });
+  };
+
+  const addQuranTarget = (target: Partial<QuranTarget>) => {
+    setQuranTracker(prev => ({
+      ...prev,
+      targets: [...prev.targets, {
+        id: Math.random().toString(),
+        type: target.type || 'read',
+        rangeName: target.rangeName || '',
+        targetVerses: target.targetVerses || 0,
+        completedVerses: { F: 0, B: 0 },
+      }]
+    }));
+  };
+
+  const updateQuranTargetProgress = (targetId: string, diff: number) => {
+    setQuranTracker(prev => ({
+      ...prev,
+      targets: prev.targets.map(t => {
+        if (t.id === targetId) {
+          const newCompleted = Math.max(0, Math.min(t.targetVerses, (t.completedVerses[currentUser] || 0) + diff));
+          return {
+            ...t,
+            completedVerses: { ...t.completedVerses, [currentUser]: newCompleted }
+          };
+        }
+        return t;
+      })
+    }));
   };
 
   const updateMoodConfig = (mood: string, color: string) => {
@@ -1841,22 +2020,23 @@ export const PlanetProvider: React.FC<{ children: React.ReactNode; userId: UserI
       calendar, tasks, inventory, transactions, liabilities, assets,
       privateNotes, vitals, habits,
       worship, gratitudeFeed, conflictRoom, vault, travel, family, notifications,
-      challenges, romancePrompts, library, focusStates, hydrationLogs, timeCapsules, geoCapsules, profiles, streaks,
+      challenges, romancePrompts, library, focusStates, hydrationLogs, memoryEther, geoCapsules, profiles, streaks,
       budget, moodLogs, journal, loveLanguages, quranTracker, moodConfigs, priorityConfigs, athkar, messages, isPartnerTyping,
       rouletteTasks, hobbyProjects, coinStaking,
-      updateMood, setWorkMode, addTask, completeTask, deleteTask, delegateTask, addTransaction,
-      requestWithdraw, approveWithdraw, updateVitals, addNotification, syncWorship,
+      updateMood, setWorkMode, addTask, updateTask, completeTask, deleteTask, delegateTask, addTransaction,
+      requestWithdraw, approveWithdraw, updateVitals, addNotification, markNotificationAsRead, clearNotifications, syncWorship,
       addLiability, addAssetGoal,
       sendMessage, editMessage, deleteMessage, addChatReaction, setTypingStatus, markMessagesRead,
-      proposeChallenge, acceptChallenge, completeChallenge, submitRomanceAnswer, addBook, updateBookProgress, toggleFocusMode, logHydration, addTimeCapsule,
+      proposeChallenge, acceptChallenge, rejectChallenge, completeChallenge, submitRomanceAnswer, addBook, updateBookProgress, toggleFocusMode, logHydration,
+      addMemoryPulse, updateMemoryPulse, deleteMemoryPulse, addFutureOrbit, updateFutureOrbit, deleteFutureOrbit, addCapsule, updateCapsule, deleteCapsule, updateAISettings, updateMemoryEtherCategories,
       updateHabitProgress, addHabit, addTravelPlan, updateTravelPackingList, addPackingItem, updateFamily, addInventoryItem, updateInventoryStock, updateKanbanStatus, syncInventoryConsumption, updateProfile,
       toggleRouletteTask, spinRoulette,
       syncTasbeeh, syncQuran, addAudioNote, addMarginalia, requestArbitration, submitArbitrationArgument, resolveArbitration, grantTimedAccess, requestEmergencyAccess, unlockAsset, addChildReport, addChildMilestone, addBarakahPoints,
       addHobbyPhoto, addHobbyProject, updateHobbyProgress, updateFitnessBattle, toggleEmergencyMode, addGeoCapsule, approveVisionBoard,
       resetDeadManSwitch,
-      stakeCoins, logQuranVerses, updateMoodConfig, updatePriorityConfig, autoAssignTask, connectFitness, syncFitness, nudgeHydration, nudgePartner,
+      stakeCoins, logQuranVerses, addQuranTarget, updateQuranTargetProgress, updateMoodConfig, updatePriorityConfig, autoAssignTask, connectFitness, syncFitness, nudgeHydration, nudgePartner,
       addFinancialGoal, getAITaskSuggestion, addAthkar, incrementAthkarCount, resetDailyAthkar,
-      rejectChallenge, deleteJournalEntry, deleteLiability, deleteAssetGoal, addCalendarEvent, deleteCalendarEvent, updateLiabilityPayment, updateAssetGoalProgress, sendHapticPulse,
+      deleteJournalEntry, deleteLiability, deleteAssetGoal, addCalendarEvent, deleteCalendarEvent, updateLiabilityPayment, updateAssetGoalProgress, sendHapticPulse,
       toggleSmartHydration: () => setSmartHydrationEnabled(prev => !prev),
       googleFitConnected,
       setGoogleFitConnected,
